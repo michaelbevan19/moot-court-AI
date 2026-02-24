@@ -73,6 +73,7 @@ const CourtRoom = () => {
     const [showHistory, setShowHistory] = useState(false);
     const [historyData, setHistoryData] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [successRate, setSuccessRate] = useState(0);
     const recognitionRef = useRef(null);
     const silenceTimerRef = useRef(null);
     const inputRef = useRef(''); // To keep track of input without closure issues
@@ -325,13 +326,18 @@ const CourtRoom = () => {
             });
 
             if (response.data.success) {
-                const reply = response.data.message;
+                const { message: reply, score } = response.data;
                 setMessages(prev => [...prev, {
                     id: Date.now() + 1,
                     type: 'bot',
                     text: reply,
                     timestamp: new Date()
                 }]);
+
+                if (score !== undefined && score !== null) {
+                    setSuccessRate(score);
+                }
+
                 speak(reply);
             }
         } catch (err) {
@@ -341,8 +347,6 @@ const CourtRoom = () => {
             setIsLoading(false);
         }
     };
-
-    const [successRate, setSuccessRate] = useState(0); // Initial value
 
     const [evidenceList, setEvidenceList] = useState([]);
 
@@ -888,7 +892,8 @@ const CourtRoom = () => {
                                         <circle cx="50" cy="50" r="42" fill="none" stroke="#1E293B" strokeWidth="6" />
                                         <circle
                                             cx="50" cy="50" r="42" fill="none" stroke="#22D3EE" strokeWidth="6"
-                                            strokeDasharray="263.89" strokeDashoffset="131.94"
+                                            strokeDasharray="263.89"
+                                            strokeDashoffset={263.89 - (263.89 * (successRate / 100))}
                                             strokeLinecap="round"
                                             className="transition-all duration-1000 shadow-[0_0_15px_rgba(34,211,238,0.5)]"
                                         />
