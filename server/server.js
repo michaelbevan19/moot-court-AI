@@ -467,3 +467,4 @@ app.listen(PORT, () => {
     console.log(`✓ API Key: ${process.env.XAI_API_KEY ? 'Configured' : 'NOT CONFIGURED'}`);
     console.log('============================================\n');
 });
+
