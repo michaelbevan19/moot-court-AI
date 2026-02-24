@@ -586,20 +586,9 @@ const CourtRoom = () => {
     };
 
     return (
-        <div className="relative h-screen overflow-hidden font-sans text-slate-200">
+        <div className="flex h-screen bg-[#020617] text-slate-200 overflow-hidden font-sans">
 
-            {/* ================= BACKGROUND LAYER ================= */}
-            <div
-                className="absolute inset-0 bg-cover bg-center bg-no-repeat animate-courtroom"
-                style={{ backgroundImage: `url(${mootBg})` }}
-            />
-
-            {/* Dark cinematic overlay for readability */}
-            <div className="absolute inset-0 bg-[#020617]/85 backdrop-blur-[2px]" />
-
-            {/* ================= APP CONTENT ================= */}
-            <div className="relative flex h-full w-full">
-                
+           
                 {/* Left Sidebar - Navigation & Case Info */}
                 <aside className="w-80 border-r border-slate-800/40 bg-[#070D1A]/40 backdrop-blur-2xl flex flex-col shrink-0">
                     <div className="p-6">
@@ -718,162 +707,169 @@ const CourtRoom = () => {
                     {/* Content Container */}
                     <div className="flex-1 flex relative overflow-hidden">
                         {/* Interaction Column */}
-                        <div className="flex-1 flex flex-col relative min-w-0">
-                            {/* Judge's Bench Area */}
-                            <div className="p-6">
-                                <div className="relative p-8 rounded-2xl bg-[#0B1120]/35 backdrop-blur-2xl border border-cyan-500/20 overflow-hidden shadow-[0_0_40px_rgba(34,211,238,0.08)]">
-                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[30%] h-[3px] bg-cyan-400 rounded-b-full shadow-[0_0_15px_rgba(34,211,238,0.5)]"></div>
+                        <div className="flex-1 flex flex-col relative min-w-0 overflow-hidden">
+                            <div
+                                 className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105"
+                                 style={{ backgroundImage: `url(${mootBg})` }}
+                            />
+                            <div className="absolute inset-0 bg-[#020617]/20 backdrop-blur-[2px]" />
+                            <div className="relative flex flex-col h-full">     
+                                {/* Judge's Bench Area */}
+                                <div className="p-6">
+                                    <div className="relative p-8 rounded-2xl bg-[#0B1120]/20 backdrop-blur-sm border border-cyan-500/20 overflow-hidden shadow-[0_0_40px_rgba(34,211,238,0.08)]">
+                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[30%] h-[3px] bg-cyan-400 rounded-b-full shadow-[0_0_15px_rgba(34,211,238,0.5)]"></div>
 
-                                    <div className="flex items-center gap-8 mb-6">
-                                        <div className="w-20 h-20 rounded-2xl bg-[#1E293B]/50 flex items-center justify-center border border-slate-700 shadow-xl backdrop-blur-sm">
-                                            <Gavel size={40} className="text-slate-400" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-[0.3em] mb-1.5 opacity-80">Presiding Judge</p>
-                                            <h2 className="text-3xl font-bold text-white tracking-tight mb-1">Hon. Chief Justice</h2>
-                                            <p className="text-xs text-slate-500 font-medium">Department 4 • High Court Simulation</p>
-                                        </div>
-                                        <div className="ml-auto">
-                                            <div className="flex gap-1">
-                                                {[...Array(10)].map((_, i) => (
-                                                    <div key={i} className={`w-1 h-4 rounded-full ${i < 6 ? 'bg-cyan-500/40' : 'bg-slate-800'}`}></div>
-                                                ))}
+                                        <div className="flex items-center gap-8 mb-6">
+                                            <div className="w-20 h-20 rounded-2xl bg-[#1E293B]/50 flex items-center justify-center border border-slate-700 shadow-xl backdrop-blur-sm">
+                                                <Gavel size={40} className="text-slate-400" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-[0.3em] mb-1.5 opacity-80">Presiding Judge</p>
+                                                <h2 className="text-3xl font-bold text-white tracking-tight mb-1">Hon. Chief Justice</h2>
+                                                <p className="text-xs text-slate-500 font-medium">Department 4 • High Court Simulation</p>
+                                            </div>
+                                            <div className="ml-auto">
+                                                <div className="flex gap-1">
+                                                    {[...Array(10)].map((_, i) => (
+                                                        <div key={i} className={`w-1 h-4 rounded-full ${i < 6 ? 'bg-cyan-500/40' : 'bg-slate-800'}`}></div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    <div className="flex justify-center">
-                                        <div className="px-6 py-1.5 rounded-full bg-slate-950/80 border border-slate-800 text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] backdrop-blur-sm">
-                                            Court is in Session • {new Date().toLocaleDateString()}
+                                        <div className="flex justify-center">
+                                            <div className="px-6 py-1.5 rounded-full bg-slate-950/80 border border-slate-800 text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] backdrop-blur-sm">
+                                                Court is in Session • {new Date().toLocaleDateString()}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Messages Flow */}
-                            <div className="flex-1 overflow-y-auto px-6 space-y-6 pb-24 custom-scrollbar">
-                                {error && (
-                                    <div className="bg-red-600/10 border border-red-600/50 rounded-xl p-4 flex items-center gap-3 text-red-200 text-sm">
-                                        <AlertTriangle className="shrink-0" size={18} />
-                                        {error}
-                                    </div>
-                                )}
-
-                                {messages.map((msg) => (
-                                    <div
-                                        key={msg.id}
-                                        className={`flex items-start gap-3 ${msg.type === 'user' ? 'flex-row-reverse' : ''}`}
-                                    >
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${msg.type === 'user'
-                                            ? 'bg-blue-600/20 border-blue-500/30'
-                                            : 'bg-slate-800 border-slate-700'
-                                            }`}>
-                                            {msg.type === 'user' ? <span className="text-[10px] font-bold">P</span> : <span className="text-[10px] font-bold">J</span>}
+                                {/* Messages Flow */}
+                                <div className="flex-1 overflow-y-auto px-6 space-y-6 pb-24 custom-scrollbar">
+                                    {error && (
+                                        <div className="bg-red-600/10 border border-red-600/50 rounded-xl p-4 flex items-center gap-3 text-red-200 text-sm">
+                                            <AlertTriangle className="shrink-0" size={18} />
+                                            {error}
                                         </div>
+                                    )}
 
-                                        <div className={`group relative max-w-[80%] ${msg.type === 'user' ? 'text-right' : ''}`}>
-                                            <div className="flex items-baseline gap-2 mb-1 px-1">
-                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                    {msg.type === 'user' ? 'Counsel' : 'Hon. Chief Justice'}
-                                                </span>
-                                                <span className="text-[8px] font-mono text-slate-600">
-                                                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
-                                                </span>
-                                            </div>
-
-                                            <div className={`px-6 py-4 rounded-2xl text-sm leading-relaxed shadow-xl ${msg.type === 'user'
-                                                ? 'bg-[#1D4ED8] text-white rounded-tr-none border border-blue-400/20'
-                                                : 'bg-[#1E293B] border border-slate-800 text-slate-100 rounded-tl-none backdrop-blur-md'
+                                    {messages.map((msg) => (
+                                        <div
+                                            key={msg.id}
+                                            className={`flex items-start gap-3 ${msg.type === 'user' ? 'flex-row-reverse' : ''}`}
+                                        >
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${msg.type === 'user'
+                                                ? 'bg-blue-600/20 border-blue-500/30'
+                                                : 'bg-slate-800 border-slate-700'
                                                 }`}>
-                                                {msg.type === 'bot' ? renderMessage(msg.text) : msg.text}
+                                                {msg.type === 'user' ? <span className="text-[10px] font-bold">P</span> : <span className="text-[10px] font-bold">J</span>}
+                                            </div>
+
+                                            <div className={`group relative max-w-[80%] ${msg.type === 'user' ? 'text-right' : ''}`}>
+                                                <div className="flex items-baseline gap-2 mb-1 px-1">
+                                                    <span className="text-[10px] font-bold text-cyan-500 uppercase tracking-wider">
+                                                        {msg.type === 'user' ? 'Counsel' : 'Hon. Chief Justice'}
+                                                    </span>
+                                                    <span className="text-[8px] font-mono text-cyan-600">
+                                                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                                    </span>
+                                                </div>
+
+                                                <div className={`px-6 py-4 rounded-2xl text-sm leading-relaxed shadow-xl ${msg.type === 'user'
+                                                    ? 'bg-[#b38e4a]/40 text-white rounded-tr-none border border-blue-400/20'
+                                                    : 'bg-[#b34a4f]/40 border border-slate-800 text-slate-100 rounded-tl-none backdrop-blur-md'
+                                                    }`}>
+                                                    {msg.type === 'bot' ? renderMessage(msg.text) : msg.text}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
 
-                                {!userRole && messages.length > 0 && messages[0].id === 'init' && (
-                                    <div className="flex justify-center gap-4 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500 fill-mode-both">
-                                        <button
-                                            onClick={() => {
-                                                setUserRole('Petitioner');
-                                                handleSend(null, "I represent the Petitioner, Your Honor.");
-                                            }}
-                                            className="group relative px-8 py-4 rounded-xl bg-blue-600/10 border border-blue-500/30 text-blue-400 font-black hover:bg-blue-600 hover:text-white transition-all shadow-[0_0_20px_rgba(37,99,235,0.1)] hover:shadow-[0_0_30px_rgba(37,99,235,0.3)] uppercase tracking-widest text-[10px] flex items-center gap-3"
-                                        >
-                                            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                                            Identify as Petitioner
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setUserRole('Respondent');
-                                                handleSend(null, "I represent the Respondent, Your Honor.");
-                                            }}
-                                            className="group relative px-8 py-4 rounded-xl bg-purple-600/10 border border-purple-500/30 text-purple-400 font-black hover:bg-purple-600 hover:text-white transition-all shadow-[0_0_20px_rgba(147,51,234,0.1)] hover:shadow-[0_0_30px_rgba(147,51,234,0.3)] uppercase tracking-widest text-[10px] flex items-center gap-3"
-                                        >
-                                            <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
-                                            Identify as Respondent
-                                        </button>
-                                    </div>
-                                )}
-
-                                {isLoading && (
-                                    <div className="flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                                            <Loader size={14} className="animate-spin text-primary" />
-                                        </div>
-                                        <div className="bg-[#1e293b]/30 border border-slate-800/50 rounded-2xl rounded-tl-none px-5 py-3">
-                                            <div className="flex gap-1">
-                                                <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce"></div>
-                                                <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                                                <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                <div ref={messagesEndRef} />
-                            </div>
-
-                            {/* Controls Overlay */}
-                            <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-[#020617] via-[#020617]/90 to-transparent">
-                                <form onSubmit={handleSend} className="relative group">
-                                    <div className="absolute -inset-1 bg-gradient-to-r from-primary to-blue-600 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition-opacity"></div>
-                                    <div className="relative bg-[#0B1120] border border-slate-800 rounded-2xl flex items-center gap-2 p-2 shadow-2xl">
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsLive(!isLive)}
-                                            className={`p-3 rounded-xl border transition-all ${isLive
-                                                ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse'
-                                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
-                                                }`}
-                                        >
-                                            <Mic size={20} />
-                                        </button>
-
-                                        <input
-                                            type="text"
-                                            value={input + (interimText ? (input ? ' ' : '') + interimText : '')}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setInput(val);
-                                                inputRef.current = val;
-                                            }}
-                                            placeholder={isLive ? "Listening..." : "Type your argument here..."}
-                                            disabled={isLoading}
-                                            className="flex-1 bg-transparent border-none outline-none py-2 px-3 text-sm text-white placeholder:text-slate-600 font-medium"
-                                        />
-
-                                        <div className="flex items-center gap-2 pr-2">
-                                            <span className="hidden md:block text-[9px] font-mono text-slate-600 uppercase tracking-widest mr-2">Press Enter to send • Mic for voice input</span>
+                                    {!userRole && messages.length > 0 && messages[0].id === 'init' && (
+                                        <div className="flex justify-center gap-4 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500 fill-mode-both">
                                             <button
-                                                type="submit"
-                                                disabled={isLoading || !input.trim()}
-                                                className="p-3 rounded-xl bg-primary text-white hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all shadow-lg shadow-primary/30"
+                                                onClick={() => {
+                                                    setUserRole('Petitioner');
+                                                    handleSend(null, "I represent the Petitioner, Your Honor.");
+                                                }}
+                                                className="group relative px-8 py-4 rounded-xl bg-blue-600/10 border border-blue-500/30 text-blue-400 font-black hover:bg-blue-600 hover:text-white transition-all shadow-[0_0_20px_rgba(37,99,235,0.1)] hover:shadow-[0_0_30px_rgba(37,99,235,0.3)] uppercase tracking-widest text-[10px] flex items-center gap-3"
                                             >
-                                                <Send size={20} />
+                                                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                                                Identify as Petitioner
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setUserRole('Respondent');
+                                                    handleSend(null, "I represent the Respondent, Your Honor.");
+                                                }}
+                                                className="group relative px-8 py-4 rounded-xl bg-purple-600/10 border border-purple-500/30 text-purple-400 font-black hover:bg-purple-600 hover:text-white transition-all shadow-[0_0_20px_rgba(147,51,234,0.1)] hover:shadow-[0_0_30px_rgba(147,51,234,0.3)] uppercase tracking-widest text-[10px] flex items-center gap-3"
+                                            >
+                                                <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
+                                                Identify as Respondent
                                             </button>
                                         </div>
-                                    </div>
-                                </form>
+                                    )}
+
+                                    {isLoading && (
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                                                <Loader size={14} className="animate-spin text-primary" />
+                                            </div>
+                                            <div className="bg-[#1e293b]/30 border border-slate-800/50 rounded-2xl rounded-tl-none px-5 py-3">
+                                                <div className="flex gap-1">
+                                                    <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce"></div>
+                                                    <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                                    <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div ref={messagesEndRef} />
+                                </div>
+
+                                {/* Controls Overlay */}
+                                <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-[#020617] via-[#020617]/90 to-transparent">
+                                    <form onSubmit={handleSend} className="relative group">
+                                        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-blue-600 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition-opacity"></div>
+                                        <div className="relative bg-[#0B1120] border border-slate-800 rounded-2xl flex items-center gap-2 p-2 shadow-2xl">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsLive(!isLive)}
+                                                className={`p-3 rounded-xl border transition-all ${isLive
+                                                    ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse'
+                                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
+                                                    }`}
+                                            >
+                                                <Mic size={20} />
+                                            </button>
+
+                                            <input
+                                                type="text"
+                                                value={input + (interimText ? (input ? ' ' : '') + interimText : '')}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setInput(val);
+                                                    inputRef.current = val;
+                                                }}
+                                                placeholder={isLive ? "Listening..." : "Type your argument here..."}
+                                                disabled={isLoading}
+                                                className="flex-1 bg-transparent border-none outline-none py-2 px-3 text-sm text-white placeholder:text-slate-600 font-medium"
+                                            />
+
+                                            <div className="flex items-center gap-2 pr-2">
+                                                <span className="hidden md:block text-[9px] font-mono text-slate-600 uppercase tracking-widest mr-2">Press Enter to send • Mic for voice input</span>
+                                                <button
+                                                    type="submit"
+                                                    disabled={isLoading || !input.trim()}
+                                                    className="p-3 rounded-xl bg-primary text-white hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all shadow-lg shadow-primary/30"
+                                                >
+                                                    <Send size={20} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
                             </div>
                         </div>
 
@@ -947,7 +943,6 @@ const CourtRoom = () => {
                 {renderFeedbackModal()}
                 {renderHistoryModal()}
             </div>
-        </div> 
     );
 };
 
