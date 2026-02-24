@@ -376,7 +376,8 @@ const CourtRoom = () => {
         try {
             const response = await axios.get(`http://localhost:5000/api/history?email=${user.email}`);
             if (response.data.success) {
-                setHistoryData(response.data.history.reverse()); // Newest first
+                const judgeHistory = response.data.history.filter(s => s.mode === 'judge' || !s.mode);
+                setHistoryData(judgeHistory.reverse()); // Newest first
             }
         } catch (error) {
             console.error("Failed to fetch history", error);
@@ -552,7 +553,12 @@ const CourtRoom = () => {
                                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                                 {new Date(session.date).toLocaleDateString()} • {new Date(session.date).toLocaleTimeString()}
                                             </span>
-                                            <span className="text-sm text-white font-medium mt-1">Session ID: {session.id.slice(-6)}</span>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${session.mode === 'support' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-cyan-500/20 text-cyan-400'}`}>
+                                                    {session.mode === 'support' ? 'MENTOR' : 'JUDGE'}
+                                                </span>
+                                                <span className="text-sm text-white font-medium">Session ID: {session.id.slice(-6)}</span>
+                                            </div>
                                         </div>
                                         <div className="text-right">
                                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Grade</span>

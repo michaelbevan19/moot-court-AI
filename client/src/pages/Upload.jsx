@@ -184,7 +184,7 @@ const UploadPage = () => {
                             <h3 className="text-2xl font-bold mb-2">AI Support Agent</h3>
                             <p className="text-slate-400 mb-6">Get suggestions on how to improve your briefs and identify case weaknesses.</p>
                             <div className="flex items-center text-sm font-bold text-indigo-400">
-                                COMING SOON
+                                ACCESS MENTOR
                                 <ArrowRight className="w-4 h-4 ml-2" />
                             </div>
                         </button>
