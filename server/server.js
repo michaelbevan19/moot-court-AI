@@ -1,4 +1,19 @@
 require('dotenv').config();
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+pool.query('SELECT NOW()')
+  .then(res => console.log('DB Connected:', res.rows[0]))
+  .catch(err => console.error('DB Connection Error:', err));
+
+
+
+console.log("DATABASE_URL:", process.env.DATABASE_URL);
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -28,37 +43,8 @@ const AI_MODEL = isGroq ? "llama-3.1-8b-instant" : "grok-2";
 
 // Store active chat sessions (in-memory for demo purposes)
 const sessions = {};
-const USERS_FILE = path.join(__dirname, 'users.json');
-const HISTORY_FILE = path.join(__dirname, 'history.json');
 
-// Helper to read users
-const readUsers = () => {
-    if (!fs.existsSync(USERS_FILE)) return [];
-    try {
-        const data = fs.readFileSync(USERS_FILE, 'utf8');
-        return JSON.parse(data);
-    } catch (e) {
-        return [];
-    }
-};
 
-// Helper to write users
-const writeUsers = (users) => {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-};
-
-// Helper to read history
-const readHistory = () => {
-    if (!fs.existsSync(HISTORY_FILE)) return {};
-    try {
-        return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
-    } catch (e) { return {}; }
-};
-
-// Helper to write history
-const writeHistory = (data) => {
-    fs.writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2));
-};
 
 
 // Middleware
@@ -197,7 +183,7 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-app.post('/api/signup', (req, res) => {
+app.post('/api/signup', async (req, res) => {
     const { email, password, name } = req.body;
 
     if (!email || !password || !name) {
@@ -212,33 +198,81 @@ app.post('/api/signup', (req, res) => {
         return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long' });
     }
 
-    const users = readUsers();
-    if (users.find(u => u.email === email)) {
-        return res.status(400).json({ success: false, message: 'Email already exists' });
+    try {
+
+        const existingUser = await pool.query(
+            "SELECT * FROM users WHERE email=$1",
+            [email]
+        );
+
+        if (existingUser.rows.length > 0) {
+            return res.status(400).json({ success: false, message: "Email already exists" });
+        }
+
+        const newUser = await pool.query(
+            "INSERT INTO users (email, password, name) VALUES ($1,$2,$3) RETURNING id,email,name",
+            [email, password, name]
+        );
+
+        res.json({
+            success: true,
+            message: "Account created successfully",
+            user: newUser.rows[0]
+        });
+
+    } catch (err) {
+        console.error("Signup error:", err);
+        res.status(500).json({ success: false, message: "Signup failed" });
     }
-
-    const newUser = { id: Date.now().toString(), email, password, name };
-    users.push(newUser);
-    writeUsers(users);
-
-    res.json({ success: true, message: 'Account created successfully', user: { id: newUser.id, email: newUser.email, name: newUser.name } });
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
+
     const { email, password } = req.body;
 
     if (!email || !password) {
-        return res.status(400).json({ success: false, message: 'Email and password are required' });
+        return res.status(400).json({
+            success: false,
+            message: 'Email and password are required'
+        });
     }
 
-    const users = readUsers();
-    const user = users.find(u => u.email === email && u.password === password);
+    try {
 
-    if (!user) {
-        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        const result = await pool.query(
+            "SELECT * FROM users WHERE email=$1 AND password=$2",
+            [email, password]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid email or password"
+            });
+        }
+
+        const user = result.rows[0];
+
+        res.json({
+            success: true,
+            message: "Login successful",
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name
+            }
+        });
+
+    } catch (err) {
+
+        console.error("Login error:", err);
+
+        res.status(500).json({
+            success: false,
+            message: "Login failed"
+        });
     }
 
-    res.json({ success: true, message: 'Login successful', user: { id: user.id, email: user.email, name: user.name } });
 });
 
 app.post('/api/init-session', upload.fields([
@@ -518,22 +552,47 @@ app.post('/api/end-session', async (req, res) => {
             }
         }
 
-        // ARCHIVE SESSION
-        const history = readHistory();
+        // ARCHIVE SESSION TO POSTGRESQL
+
         const email = metadata.userEmail || 'guest';
 
-        if (!history[email]) history[email] = [];
+        try {
 
-        history[email].push({
-            id: sessionId,
-            date: new Date().toISOString(),
-            score: report.letter_grade || 'N/A',
-            report: report,
-            mode: mode, // Save mode in history
-            transcript: chatHistory.filter(m => m.role !== 'system')
-        });
+            // Insert session
+            await pool.query(
+                `INSERT INTO sessions (id, user_email, date, score, report)
+                VALUES ($1,$2,$3,$4,$5)`,
+                [
+                    sessionId,
+                    email,
+                    new Date(),
+                    report.letter_grade || 'N/A',
+                    JSON.stringify(report)
+                ]
+            );
 
-        writeHistory(history);
+            // Insert transcript messages
+            const messages = chatHistory.filter(m => m.role !== 'system');
+
+            for (const msg of messages) {
+
+                await pool.query(
+                    `INSERT INTO transcripts (session_id, role, content)
+                    VALUES ($1,$2,$3)`,
+                    [
+                        sessionId,
+                        msg.role,
+                        msg.content
+                    ]
+                );
+
+            }
+
+        } catch (err) {
+
+            console.error("Session archive error:", err);
+
+        }
 
         // Clean up session
         delete sessions[sessionId];
@@ -545,13 +604,65 @@ app.post('/api/end-session', async (req, res) => {
     }
 });
 
-app.get('/api/history', (req, res) => {
-    const { email } = req.query;
-    if (!email) return res.status(400).json({ success: false, message: 'Email required' });
+app.get('/api/history', async (req, res) => {
 
-    const history = readHistory();
-    const userHistory = history[email] || [];
-    res.json({ success: true, history: userHistory });
+    const { email } = req.query;
+
+    if (!email) {
+        return res.status(400).json({
+            success: false,
+            message: "Email required"
+        });
+    }
+
+    try {
+
+        const sessionsResult = await pool.query(
+            `SELECT * FROM sessions
+             WHERE user_email = $1
+             ORDER BY date DESC`,
+            [email]
+        );
+
+        const sessions = sessionsResult.rows;
+
+        const history = [];
+
+        for (const session of sessions) {
+
+            const transcriptResult = await pool.query(
+                `SELECT role, content
+                 FROM transcripts
+                 WHERE session_id = $1`,
+                [session.id]
+            );
+
+            history.push({
+                id: session.id,
+                date: session.date,
+                score: session.score,
+                report: session.report,
+                transcript: transcriptResult.rows
+            });
+
+        }
+
+        res.json({
+            success: true,
+            history
+        });
+
+    } catch (err) {
+
+        console.error("History fetch error:", err);
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch history"
+        });
+
+    }
+
 });
 
 // Start Server
