@@ -1,0 +1,9 @@
+{
+    "dependencies": [
+        "."
+    ],
+    "graphs": {
+        "evaluator": "./graph.py:build_graph"
+    },
+    "env": "../.env"
+}

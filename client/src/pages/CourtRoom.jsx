@@ -79,28 +79,80 @@ const CourtRoom = () => {
     const inputRef = useRef(''); // To keep track of input without closure issues
     const messagesEndRef = useRef(null);
     const synthRef = useRef(window.speechSynthesis);
+    const utteranceRef = useRef(null); // Keep reference to prevent GC
+    const isLiveRef = useRef(isLive);
+    isLiveRef.current = isLive;
+
+    const primeAudio = () => {
+        if (synthRef.current) {
+            console.log("TTS: Priming audio engine...");
+            const utterance = new SpeechSynthesisUtterance("");
+            utterance.volume = 0;
+            synthRef.current.speak(utterance);
+        }
+    };
 
     const speak = (text) => {
-        setIsLive(false); // Stop mic when AI speaks to prevent self-listening loop
-        if (!text || !synthRef.current) return;
+        if (!text || !synthRef.current) {
+            console.warn("TTS: No text or synth available");
+            return;
+        }
+
+        console.log("TTS: Attempting to speak:", text.substring(0, 30) + "...");
 
         // Cancel any ongoing speech
         synthRef.current.cancel();
 
         // Remove markdown artifacts for cleaner speech
-        const cleanText = text.replace(/[#*`_~]/g, '').substring(0, 500); // Limit to 500 chars for performance
+        const cleanText = text.replace(/[#*`_~]/g, '').substring(0, 1000); // Increased limit slightly
 
         const utterance = new SpeechSynthesisUtterance(cleanText);
+        utteranceRef.current = utterance; // Prevent GC
+
         utterance.lang = 'en-US';
         utterance.rate = 1.0;
-        utterance.pitch = 0.9; // Slightly deeper voice for the judge
+        utterance.pitch = 0.9;
+        utterance.volume = 1.0;
 
-        // Find a professional sounding voice if available
-        const voices = synthRef.current.getVoices();
-        const googleVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha'));
-        if (googleVoice) utterance.voice = googleVoice;
+        const setVoiceAndSpeak = () => {
+            const voices = synthRef.current.getVoices();
+            console.log(`TTS: ${voices.length} voices found`);
 
-        synthRef.current.speak(utterance);
+            // Priority list for a authoritative judge voice
+            const preferredVoice = voices.find(v => v.name.includes('Google US English')) ||
+                voices.find(v => v.name.includes('Daniel')) ||
+                voices.find(v => v.name.includes('Samantha')) ||
+                voices.find(v => v.lang.startsWith('en-'));
+
+            if (preferredVoice) {
+                console.log("TTS: Using voice:", preferredVoice.name);
+                utterance.voice = preferredVoice;
+            }
+
+            synthRef.current.speak(utterance);
+        };
+
+        // If voices are already loaded, just speak
+        if (synthRef.current.getVoices().length > 0) {
+            setVoiceAndSpeak();
+        } else {
+            console.log("TTS: Waiting for voices...");
+            const handleVoicesChanged = () => {
+                setVoiceAndSpeak();
+                synthRef.current.onvoiceschanged = null;
+            };
+            synthRef.current.onvoiceschanged = handleVoicesChanged;
+
+            // Some browsers need a "kick" to load voices
+            synthRef.current.getVoices();
+        }
+
+        utterance.onstart = () => console.log("TTS: Speech started");
+        utterance.onend = () => {
+            console.log("TTS: Speech finished");
+            utteranceRef.current = null;
+        };
+        utterance.onerror = (e) => console.error("TTS: Speech error:", e);
     };
 
     const stopSpeech = () => {
@@ -163,7 +215,7 @@ const CourtRoom = () => {
         if (!SpeechRecognition) return;
 
         const recognition = new SpeechRecognition();
-        recognition.continuous = false; // Disable continuous to prevent duplication bugs
+        recognition.continuous = true; // Enable continuous listening
         recognition.interimResults = true;
         recognition.lang = 'en-US';
 
@@ -212,9 +264,12 @@ const CourtRoom = () => {
         };
 
         recognition.onend = () => {
-            // STRICT ONE-SHOT: Turn off mic immediately after one session.
-            // This prevents "ghost" instances from restarting or staying alive in background.
-            setIsLive(false);
+            // Keep mic live indefinitely until manually stopped
+            if (isLiveRef.current) {
+                try {
+                    recognition.start();
+                } catch (e) { }
+            }
         };
 
         recognitionRef.current = recognition;
@@ -282,9 +337,13 @@ const CourtRoom = () => {
             }
         } catch (err) {
             console.error('Chat error:', err);
-            const errorMsg = err.response?.status === 429
-                ? 'API rate limit exceeded. Please wait a moment and try again.'
-                : err.message || 'Failed to send message';
+            let errorMsg = err.message || 'Failed to send message';
+
+            if (err.response?.status === 404) {
+                errorMsg = 'Session expired due to server restart. Please refresh the page to start a new session.';
+            } else if (err.response?.status === 429) {
+                errorMsg = 'API rate limit exceeded. Please wait a moment and try again.';
+            }
 
             setError(errorMsg);
         } finally {
@@ -697,6 +756,7 @@ const CourtRoom = () => {
                             </div>
                             <button
                                 onClick={() => {
+                                    primeAudio();
                                     setIsLive(!isLive);
                                     setError('');
                                 }}
@@ -803,6 +863,7 @@ const CourtRoom = () => {
                                     <div className="flex justify-center gap-4 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500 fill-mode-both">
                                         <button
                                             onClick={() => {
+                                                primeAudio();
                                                 setUserRole('Petitioner');
                                                 handleSend(null, "I represent the Petitioner, Your Honor.");
                                             }}
@@ -813,6 +874,7 @@ const CourtRoom = () => {
                                         </button>
                                         <button
                                             onClick={() => {
+                                                primeAudio();
                                                 setUserRole('Respondent');
                                                 handleSend(null, "I represent the Respondent, Your Honor.");
                                             }}
@@ -848,9 +910,12 @@ const CourtRoom = () => {
                                     <div className="relative bg-[#0B1120] border border-slate-800 rounded-2xl flex items-center gap-2 p-2 shadow-2xl">
                                         <button
                                             type="button"
-                                            onClick={() => setIsLive(!isLive)}
+                                            onClick={() => {
+                                                primeAudio();
+                                                setIsLive(!isLive);
+                                            }}
                                             className={`p-3 rounded-xl border transition-all ${isLive
-                                                ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse'
+                                                ? 'bg-red-600 border-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]'
                                                 : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
                                                 }`}
                                         >

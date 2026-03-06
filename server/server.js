@@ -11,6 +11,8 @@ const OpenAI = require('openai');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const { spawn } = require('child_process');
+
 // Validate environment variables
 // Initialize AI backend (detect Groq or xAI based on key prefix)
 const xaiKey = process.env.XAI_API_KEY;
@@ -122,6 +124,63 @@ async function parsePDF(filePath) {
         }
     }
 }
+
+// Helper to run Forensic Evaluator (Python)
+const runForensicEvaluator = (transcript, proposition, metrics = "") => {
+    return new Promise((resolve, reject) => {
+        // Locate the venv python explicitly, assuming .venv is in the project root
+        const venvPythonPath = path.join(__dirname, '..', '.venv', 'bin', 'python');
+        const pythonProcess = spawn(fs.existsSync(venvPythonPath) ? venvPythonPath : 'python3', [path.join(__dirname, 'evaluator', 'main.py')]);
+        let output = '';
+        let error = '';
+
+        pythonProcess.stdin.write(JSON.stringify({ transcript, proposition, metrics }));
+        pythonProcess.stdin.end();
+
+        pythonProcess.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+
+        pythonProcess.stderr.on('data', (data) => {
+            error += data.toString();
+        });
+
+        pythonProcess.on('close', (code) => {
+            if (code !== 0) {
+                console.error(`Evaluator Process Error (Code ${code}):`, error);
+                reject(new Error(`Evaluator failed: ${error.split('\n').pop()}`));
+            } else {
+                try {
+                    // Python scripts might print extra warnings or crewai telemetry boxes
+                    // We extract the first clean `{...}` JSON blob using regex or string match
+                    const outputStr = output.trim();
+                    const startIndex = outputStr.indexOf('{');
+
+                    if (startIndex === -1) {
+                        throw new Error("No JSON object found in evaluator output string");
+                    }
+
+                    // We need to find the matching '}' properly, or simpler: just substring from '{' and let JSON.parse try.
+                    // But if there's stuff *after*, we might need to be careful.
+                    // Instead, let's try to parse from first '{', and if it fails, try regex.
+
+                    let jsonStr = outputStr.substring(startIndex);
+                    // If CrewAI dumps table at the end, clean it by finding last '}'
+                    const endIndex = jsonStr.lastIndexOf('}');
+                    if (endIndex !== -1) {
+                        jsonStr = jsonStr.substring(0, endIndex + 1);
+                    }
+
+                    const parsed = JSON.parse(jsonStr);
+                    resolve(parsed);
+                } catch (e) {
+                    console.error('JSON Parse Error from Evaluator:', e.message, output);
+                    reject(new Error('Failed to parse evaluator output API. Check server logs.'));
+                }
+            }
+        });
+    });
+};
 
 // Ensure uploads directory exists
 if (!fs.existsSync('uploads')) {
@@ -279,7 +338,7 @@ You are **STERN, STRICT, and AUTHORITATIVE**. You are not here to help, mentor, 
 **INITIAL OUTPUT**:
 Demand the user identify their role (Petitioner or Respondent) immediately and formally. Once they choose, declare the court to be in session without delay.`;
 
-        const supportPersona = `You are the **AI Moot Court Mentor & Support Agent**. Your mission is to help students excel in their moot court competitions. 
+        const supportPersona = `You are the **AI Moot Court Mentor & Support Agent**. Your mission is to help students excel in their moot court competitions.
 
 **YOUR ROLE:**
 You are a brilliant, patient, and highly encouraging legal mentor. You talk like an expert coach who wants their student to win. You are here to provide guidance, analyze uploaded documents, and suggest powerful strategies.
@@ -353,7 +412,7 @@ app.post('/api/chat', async (req, res) => {
                 role: "system",
                 content: `IMPORTANT: Provide your response in strict JSON format.
                 Structure: { "reply": "Your verbal response as the judge...", "score": 0-100 }
-                CRITICAL: The "reply" field MUST ONLY contain the judge's spoken dialogue. 
+                CRITICAL: The "reply" field MUST ONLY contain the judge's spoken dialogue.
                 DO NOT mention the score, numerical values, or technical evaluations in the "reply" string.`
             });
         } else {
@@ -404,7 +463,7 @@ app.post('/api/chat', async (req, res) => {
 // ... (greeting endpoint skipped for brevity) ...
 
 app.post('/api/end-session', async (req, res) => {
-    const { sessionId } = req.body;
+    const { sessionId, metrics = "" } = req.body;
     if (!sessionId || !sessions[sessionId]) {
         return res.status(400).json({ success: false, message: 'Invalid session' });
     }
@@ -419,47 +478,27 @@ app.post('/api/end-session', async (req, res) => {
         let report = null;
 
         if (mode === 'judge') {
-            const feedbackPrompt = `As a Moot Court Judge, provide a detailed performance report based on the session history.
-            The report must evaluate the following specific criteria:
-            1. Knowledge of Facts
-            2. Knowledge of Law
-            3. Application of Law
-            4. Ability to answer questions thrown by the judge
-            5. Etiquette and Formalities
+            const transcriptText = chatHistory
+                .filter(m => m.role !== 'system')
+                .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+                .join('\n');
 
-            Return ONLY valid JSON with this structure:
-            {
-              "letter_grade": "A/B/C/D/F",
-              "scores": {
-                "knowledge_of_facts": 0-100,
-                "knowledge_of_law": 0-100,
-                "application_of_law": 0-100,
-                "answering_questions": 0-100,
-                "etiquette_formalities": 0-100,
-                "overall": 0-100
-              },
-              "feedback": "Detailed markdown text analysis of each category above..."
-            }
-            
-            SESSION HISTORY:
-            ${chatHistory.filter(m => m.role !== 'system').map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}`;
+            const propositionText = metadata.documentContent || "";
 
-            const response = await openai.chat.completions.create({
-                model: AI_MODEL,
-                messages: [{ role: 'system', content: 'You are a senior High Court Judge. Output strictly in JSON.' }, { role: 'user', content: feedbackPrompt }],
-                response_format: { type: "json_object" }
-            });
-
-            const content = response.choices[0].message.content;
             try {
-                report = JSON.parse(content);
-            } catch (e) {
-                console.error("Failed to parse report JSON", e);
-                report = { feedback: content, scores: {}, letter_grade: 'N/A' };
+                report = await runForensicEvaluator(transcriptText, propositionText, metrics);
+            } catch (evalError) {
+                console.error("Forensic Evaluator Failed:", evalError);
+                // Fallback to basic report if python fails
+                report = {
+                    feedback: "Evaluator Error: " + evalError.message,
+                    scores: { overall: 0 },
+                    letter_grade: 'ERR'
+                };
             }
         } else {
             // SUPPORT MODE: Simpler summary instead of full judge report
-            const summaryPrompt = `Provide a very brief summary of the mentoring session and key advice given to the student. 
+            const summaryPrompt = `Provide a very brief summary of the mentoring session and key advice given to the student.
             Keep it structured in markdown. Return JSON with structure: { "letter_grade": "Mentor Session", "feedback": "Summary..." }`;
 
             const response = await openai.chat.completions.create({
@@ -516,7 +555,7 @@ app.get('/api/history', (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log('\n============================================');
     console.log('🔥 Moot Court Assistant API (Grok Edition)');
     console.log('============================================');
@@ -527,3 +566,46 @@ app.listen(PORT, () => {
     console.log('============================================\n');
 });
 
+server.on('error', (err) => {
+    console.error('❌ Server Socket Error:', err);
+    if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use. Please kill the process or use a different port.`);
+    }
+});
+
+server.on('close', () => {
+    console.log('⚠️ Server socket closed.');
+});
+
+// Keep the process alive with a heartbeat and add exit diagnostics
+const heartbeat = setInterval(() => {
+    // Keep event loop active
+}, 30000);
+
+process.on('exit', (code) => {
+    console.log(`\n🔴 Server process exiting with code: ${code}`);
+    console.log('Stack trace at exit:', new Error().stack);
+});
+
+process.on('SIGINT', () => {
+    console.log('\n🛑 SIGINT received. Shutting down...');
+    clearInterval(heartbeat);
+    server.close(() => process.exit(0));
+});
+
+process.on('SIGTERM', () => {
+    console.log('\n🛑 SIGTERM received. Shutting down...');
+    clearInterval(heartbeat);
+    server.close(() => process.exit(0));
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('\n🔥 Uncaught Exception:', err);
+    console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('\n🔥 Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+console.log('✅ Server initialization complete. Event loop active.');
