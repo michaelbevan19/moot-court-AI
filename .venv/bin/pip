@@ -1,4 +1,4 @@
-#!/Users/mac/Downloads/moot-court-assistant/.venv/bin/python
+#!/Users/mac/Downloads/moot-court-assistant/.venv/bin/python3.13
 # -*- coding: utf-8 -*-
 import re
 import sys

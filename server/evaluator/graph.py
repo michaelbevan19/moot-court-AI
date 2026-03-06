@@ -278,7 +278,7 @@ Return ONLY valid JSON:
 
 
 def speech_evaluation(state: EvalState) -> dict:
-    """Evaluate vocal delivery based on metrics."""
+    """Evaluate vocal delivery based on real-time speech metrics."""
     transcript = state["transcript"][:3000]
     metrics = state.get("metrics", "")
     exchanges = state["student_exchanges"]
@@ -288,16 +288,22 @@ def speech_evaluation(state: EvalState) -> dict:
 TRANSCRIPT:
 {transcript}
 
-SPEECH METRICS: {metrics if metrics else "No metrics available."}
+LIVE SPEECH METRICS FROM SESSION: {metrics if metrics else "No metrics available."}
 SESSION CONTEXT: {exchanges} student exchanges.
 
+The metrics above were captured in real-time during the session. They may include:
+- **WPM (Words Per Minute)**: Ideal courtroom pace is 120-150 WPM. Below 80 is too slow, above 160 is rushing.
+- **Pitch Variability (Hz std dev)**: Measures vocal expressiveness. Below 15 Hz = monotone, 15-35 Hz = moderate, above 35 Hz = expressive.
+- **Articulation Confidence (%)**: Measures speech clarity. Below 60% = unclear, 60-80% = adequate, above 80% = clear and precise.
+- **Total Words Spoken** and **Speaking Duration**: Context for session depth.
+
 Write a speech evaluation with these fields:
-1. "summary": 3-4 sentences evaluating vocal delivery, pacing, and clarity. Mention WPM if available. No numerical scores in this field.
-2. "delivery_score" (0-25): Overall quality of verbal delivery based on available evidence.
+1. "summary": 3-4 sentences evaluating vocal delivery, pacing, and clarity. Reference the specific metric values provided above. Be specific — cite the exact WPM, pitch variability, and articulation numbers.
+2. "delivery_score" (0-25): Overall quality of verbal delivery. Score generously if metrics show ideal range, score low if metrics show poor performance or if no metrics were captured (indicating no voice was used).
 
 Return ONLY valid JSON:
 {{
-  "summary": "3-4 sentence evaluation...",
+  "summary": "3-4 sentence evaluation referencing specific metrics...",
   "delivery_score": 0
 }}"""
 

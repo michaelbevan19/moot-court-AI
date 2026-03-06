@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft, Loader, Mic, Gavel, User, LayoutDashboard, Shield, Activity, ListChecks, Scale, AlertTriangle, BookOpen, Volume2, FileText, X, Clock, MessageSquare, ArrowRight } from 'lucide-react';
 import axios from 'axios';
 import courtroomBg from '../assets/courtroom.jpg';
+import useSpeechAnalytics from '../hooks/useSpeechAnalytics';
 
 const formatLine = (line) => {
     const parts = line.split(/(\*\*.*?\*\*)/g);
@@ -82,6 +83,9 @@ const CourtRoom = () => {
     const utteranceRef = useRef(null); // Keep reference to prevent GC
     const isLiveRef = useRef(isLive);
     isLiveRef.current = isLive;
+
+    // Speech Analytics Hook
+    const speechAnalytics = useSpeechAnalytics();
 
     const primeAudio = () => {
         if (synthRef.current) {
@@ -193,10 +197,14 @@ const CourtRoom = () => {
         setIsLoading(true);
         setError('');
 
+        // Collect speech metrics before stopping
+        const metrics = speechAnalytics.getMetricsString();
+        speechAnalytics.stopAnalyzing();
+        setIsLive(false);
+
         try {
-            const response = await axios.post('http://localhost:5000/api/end-session', { sessionId });
+            const response = await axios.post('http://localhost:5000/api/end-session', { sessionId, metrics });
             if (response.data.success) {
-                // Expecting report object from backend
                 setFeedbackReport(response.data.report);
                 if (synthRef.current) synthRef.current.cancel();
             } else {
@@ -225,28 +233,34 @@ const CourtRoom = () => {
 
         recognition.onresult = (event) => {
             let interim = '';
-            let final = '';
+            let finalText = '';
+            let finalConfidence = 0;
+            let finalCount = 0;
 
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
-                    final += event.results[i][0].transcript;
+                    finalText += event.results[i][0].transcript;
+                    finalConfidence += event.results[i][0].confidence || 0;
+                    finalCount++;
                 } else {
                     interim += event.results[i][0].transcript;
                 }
             }
 
-            if (final) {
+            if (finalText) {
                 // Append efficiently
                 const current = inputRef.current;
-                // Add space only if there's text and it doesn't end in space
                 const prefix = current && !current.endsWith(' ') ? ' ' : '';
-                const newText = current + prefix + final;
+                const newText = current + prefix + finalText;
 
                 setInput(newText);
                 inputRef.current = newText;
                 setInterimText('');
 
-                // Optional: Auto-send logic could go here, but user wants manual control/stop
+                // Feed speech analytics
+                const wordCount = finalText.trim().split(/\s+/).length;
+                const avgConfidence = finalCount > 0 ? finalConfidence / finalCount : 0;
+                speechAnalytics.recordWords(wordCount, avgConfidence);
             } else {
                 setInterimText(interim);
             }
@@ -277,7 +291,10 @@ const CourtRoom = () => {
         if (isLive) {
             try {
                 recognition.start();
+                speechAnalytics.startAnalyzing();
             } catch (e) { console.warn(e); }
+        } else {
+            speechAnalytics.stopAnalyzing();
         }
 
         return () => {
@@ -355,16 +372,6 @@ const CourtRoom = () => {
         if (isLoading || !sessionId) return;
         const objectionText = "OBJECTION! Your Honor, I object to the current line of questioning/reasoning.";
         sendAutomaticMessage(objectionText);
-    };
-
-    const handleCiteLaw = () => {
-        if (isLoading || !sessionId) return;
-        setInput("I would like to cite the law regarding this matter: ");
-        // Small delay to ensure state update and then focus
-        setTimeout(() => {
-            const inputField = document.querySelector('input[type="text"]');
-            if (inputField) inputField.focus();
-        }, 100);
     };
 
     const sendAutomaticMessage = async (text) => {
@@ -951,14 +958,14 @@ const CourtRoom = () => {
                         </div>
 
                         {/* Right Sidebar - Live Analytics */}
-                        <aside className="w-80 border-l border-slate-800 bg-[#070D1A]/50 backdrop-blur-xl p-8 flex flex-col shrink-0">
-                            <div className="mb-10">
-                                <div className="flex items-center justify-between mb-8">
+                        <aside className="w-80 border-l border-slate-800 bg-[#070D1A]/50 backdrop-blur-xl p-6 flex flex-col shrink-0 overflow-y-auto custom-scrollbar">
+                            <div className="mb-6">
+                                <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Live Analytics</h3>
                                     <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
                                 </div>
 
-                                <div className="relative h-56 w-56 mx-auto mb-8">
+                                <div className="relative h-40 w-40 mx-auto mb-4">
                                     <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
                                         <circle cx="50" cy="50" r="42" fill="none" stroke="#1E293B" strokeWidth="6" />
                                         <circle
@@ -970,13 +977,13 @@ const CourtRoom = () => {
                                         />
                                     </svg>
                                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                        <span className="text-5xl font-black text-white tracking-tighter">{successRate}%</span>
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Success Rate</span>
+                                        <span className="text-3xl font-black text-white tracking-tighter">{successRate}%</span>
+                                        <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-1">Success Rate</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-8 flex-1">
+                            <div className="space-y-5 flex-1">
                                 <div>
                                     <div className="flex items-center justify-between mb-3">
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Courtroom Tension</span>
@@ -988,22 +995,119 @@ const CourtRoom = () => {
                                     <p className="text-[10px] text-slate-500 mt-3 leading-relaxed font-medium opacity-70">Real-time analysis of speech patterns and judge's sentiment. Keep tension low for better outcomes.</p>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-4 pt-8 border-t border-slate-800/50">
+                                {/* --- Live Speech Analytics --- */}
+                                <div className="pt-6 border-t border-slate-800/50 space-y-5">
+                                    {/* Waveform Visualization */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Voice Input</span>
+                                            <span className={`text-[10px] font-bold uppercase tracking-[0.2em] ${speechAnalytics.isAnalyzing ? 'text-emerald-500' : 'text-slate-600'}`}>
+                                                {speechAnalytics.isAnalyzing ? 'Listening' : 'Inactive'}
+                                            </span>
+                                        </div>
+                                        <div className="h-16 w-full bg-[#0F172A] rounded-xl border border-slate-800 flex items-center justify-center gap-[3px] px-3 overflow-hidden">
+                                            {Array.from(speechAnalytics.waveformData).map((val, i) => {
+                                                const height = speechAnalytics.isAnalyzing
+                                                    ? Math.max(4, ((val - 128) / 128) * 100 + 50)
+                                                    : 4;
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        className="rounded-full transition-all duration-75"
+                                                        style={{
+                                                            width: '3px',
+                                                            height: `${Math.min(height, 90)}%`,
+                                                            backgroundColor: speechAnalytics.isAnalyzing
+                                                                ? `hsl(${180 + (i * 3)}, 80%, ${50 + (val - 128) / 5}%)`
+                                                                : '#334155',
+                                                            minHeight: '3px',
+                                                        }}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* WPM Metric */}
+                                    <div className="p-3 rounded-xl bg-[#0F172A] border border-slate-800">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Words / Min</span>
+                                            <div className="flex items-baseline gap-1.5">
+                                                <span className="text-lg font-black text-white">{speechAnalytics.currentWPM}</span>
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${speechAnalytics.wpmLabel === 'Ideal' ? 'text-emerald-400' :
+                                                    speechAnalytics.wpmLabel === 'Measured' ? 'text-cyan-400' :
+                                                        speechAnalytics.wpmLabel === 'Rushing' ? 'text-red-400' :
+                                                            speechAnalytics.wpmLabel === 'Too Slow' ? 'text-yellow-400' : 'text-slate-600'
+                                                    }`}>{speechAnalytics.wpmLabel}</span>
+                                            </div>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-700 ${speechAnalytics.wpmLabel === 'Ideal' ? 'bg-emerald-500' :
+                                                    speechAnalytics.wpmLabel === 'Measured' ? 'bg-cyan-500' :
+                                                        speechAnalytics.wpmLabel === 'Rushing' ? 'bg-red-500' :
+                                                            speechAnalytics.wpmLabel === 'Too Slow' ? 'bg-yellow-500' : 'bg-slate-700'
+                                                    }`}
+                                                style={{ width: `${Math.min((speechAnalytics.currentWPM / 200) * 100, 100)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Pitch Variability Metric */}
+                                    <div className="p-3 rounded-xl bg-[#0F172A] border border-slate-800">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pitch Range</span>
+                                            <div className="flex items-baseline gap-1.5">
+                                                <span className="text-lg font-black text-white">{speechAnalytics.pitchVariability}</span>
+                                                <span className="text-[9px] font-bold text-slate-500">Hz</span>
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${speechAnalytics.pitchLabel === 'Expressive' ? 'text-emerald-400' :
+                                                    speechAnalytics.pitchLabel === 'Moderate' ? 'text-cyan-400' :
+                                                        speechAnalytics.pitchLabel === 'Monotone' ? 'text-yellow-400' : 'text-slate-600'
+                                                    }`}>{speechAnalytics.pitchLabel}</span>
+                                            </div>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-700 ${speechAnalytics.pitchLabel === 'Expressive' ? 'bg-emerald-500' :
+                                                    speechAnalytics.pitchLabel === 'Moderate' ? 'bg-cyan-500' :
+                                                        speechAnalytics.pitchLabel === 'Monotone' ? 'bg-yellow-500' : 'bg-slate-700'
+                                                    }`}
+                                                style={{ width: `${Math.min((speechAnalytics.pitchVariability / 60) * 100, 100)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Articulation Metric */}
+                                    <div className="p-3 rounded-xl bg-[#0F172A] border border-slate-800">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Articulation</span>
+                                            <div className="flex items-baseline gap-1.5">
+                                                <span className="text-lg font-black text-white">{speechAnalytics.articulationScore}%</span>
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${speechAnalytics.articulationLabel === 'Clear & Precise' ? 'text-emerald-400' :
+                                                    speechAnalytics.articulationLabel === 'Adequate' ? 'text-cyan-400' :
+                                                        speechAnalytics.articulationLabel === 'Unclear' ? 'text-red-400' : 'text-slate-600'
+                                                    }`}>{speechAnalytics.articulationLabel}</span>
+                                            </div>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-700 ${speechAnalytics.articulationLabel === 'Clear & Precise' ? 'bg-emerald-500' :
+                                                    speechAnalytics.articulationLabel === 'Adequate' ? 'bg-cyan-500' :
+                                                        speechAnalytics.articulationLabel === 'Unclear' ? 'bg-red-500' : 'bg-slate-700'
+                                                    }`}
+                                                style={{ width: `${speechAnalytics.articulationScore}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Objection Button (kept but smaller) */}
                                     <button
                                         onClick={handleObjection}
                                         disabled={isLoading}
-                                        className="flex items-center justify-center gap-3 py-4 rounded-xl bg-[#2D161B] border border-red-500/30 hover:bg-red-900/40 transition-all group shadow-lg disabled:opacity-50"
+                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2D161B] border border-red-500/30 hover:bg-red-900/40 transition-all group shadow-lg disabled:opacity-50"
                                     >
-                                        <AlertTriangle size={20} className="text-red-500 group-hover:scale-110 transition-transform" />
-                                        <span className="text-[11px] font-black text-white uppercase tracking-widest">Objection</span>
-                                    </button>
-                                    <button
-                                        onClick={handleCiteLaw}
-                                        disabled={isLoading}
-                                        className="flex items-center justify-center gap-3 py-4 rounded-xl bg-[#161B33] border border-blue-500/30 hover:bg-blue-900/40 transition-all group shadow-lg disabled:opacity-50"
-                                    >
-                                        <BookOpen size={20} className="text-blue-500 group-hover:scale-110 transition-transform" />
-                                        <span className="text-[11px] font-black text-white uppercase tracking-widest">Cite Law</span>
+                                        <AlertTriangle size={16} className="text-red-500 group-hover:scale-110 transition-transform" />
+                                        <span className="text-[10px] font-black text-white uppercase tracking-widest">Objection</span>
                                     </button>
                                 </div>
                             </div>
