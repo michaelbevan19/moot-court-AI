@@ -18,8 +18,8 @@ const Dashboard = () => {
         },
         {
             id: 'penal-code',
-            title: 'Penal Code Reference',
-            description: 'Comprehensive database of laws, sections, and articles for quick reference.',
+            title: 'Bharatiya Nyaya Sanhita (BNS)',
+            description: 'Comprehensive database of BNS chapters and sections for quick reference.',
             icon: <Smartphone className="w-8 h-8 text-indigo-400" />,
             action: () => navigate('/penal-code'),
             gradient: 'from-indigo-500/20 to-purple-600/20',
