@@ -1,9 +1,6 @@
 """
 LangGraph-based Forensic Evaluation Pipeline.
 
-Replaces CrewAI's multi-agent approach with a single-LLM state machine.
-Each node evaluates one dimension using explicit scoring rubrics.
-Final scores are computed deterministically (math, not LLM).
 """
 
 import os
