@@ -37,9 +37,8 @@ const openai = new OpenAI({
     baseURL: isGroq ? "https://api.groq.com/openai/v1" : "https://api.x.ai/v1",
 });
 
-// Use stable models: llama-3.3-70b-versatile for Groq, grok-2 for xAI
-// Use stable models: llama-3.1-8b-instant for Groq (faster/efficient), grok-2 for xAI
-const AI_MODEL = isGroq ? "llama-3.1-8b-instant" : "grok-2";
+// Use active models: qwen/qwen3.6-27b or openai/gpt-oss-120b for Groq, grok-2 for xAI
+const AI_MODEL = isGroq ? "qwen/qwen3.6-27b" : "grok-2";
 
 // Store active chat sessions (in-memory for demo purposes)
 const sessions = {};

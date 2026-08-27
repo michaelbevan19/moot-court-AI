@@ -18,8 +18,8 @@ load_dotenv()
 # ─── LLM Setup ───────────────────────────────────────────────────────────────
 
 GROQ_API_KEY = os.getenv("EVAL_API_KEY")
-PRIMARY_MODEL = "llama-3.3-70b-versatile"
-FALLBACK_MODELS = ["llama-3.1-8b-instant", "gemma2-9b-it"]
+PRIMARY_MODEL = "qwen/qwen3.6-27b"
+FALLBACK_MODELS = ["openai/gpt-oss-120b", "groq/compound"]
 
 def get_llm(model: str = PRIMARY_MODEL, temperature: float = 0):
     return ChatGroq(
