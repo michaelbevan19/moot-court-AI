@@ -28,18 +28,15 @@ const PORT = process.env.PORT || 5000;
 
 const { spawn } = require('child_process');
 
-// Validate environment variables
-// Initialize AI backend (detect Groq or xAI based on key prefix)
-const xaiKey = process.env.XAI_API_KEY;
-const isGroq = xaiKey && xaiKey.startsWith('gsk_');
+// Initialize AI backend (Google Gemini via OpenAI-compatible endpoint)
+const geminiKey = process.env.GEMINI_API_KEY;
 const openai = new OpenAI({
-    apiKey: xaiKey,
-    baseURL: isGroq ? "https://api.groq.com/openai/v1" : "https://api.x.ai/v1",
+    apiKey: geminiKey,
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
 });
 
-// Use stable models: llama-3.3-70b-versatile for Groq, grok-2 for xAI
-// Use stable models: llama-3.1-8b-instant for Groq (faster/efficient), grok-2 for xAI
-const AI_MODEL = isGroq ? "llama-3.1-8b-instant" : "grok-2";
+// Use Gemini 3.6 Flash
+const AI_MODEL = "gemini-3.6-flash";
 
 // Store active chat sessions (in-memory for demo purposes)
 const sessions = {};
@@ -177,9 +174,9 @@ if (!fs.existsSync('uploads')) {
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
-        message: 'Moot Court Assistant API (Grok Edition) is running',
+        message: 'Moot Court Assistant API (Gemini Edition) is running',
         timestamp: new Date().toISOString(),
-        grokConfigured: !!process.env.XAI_API_KEY
+        geminiConfigured: !!process.env.GEMINI_API_KEY
     });
 });
 
@@ -668,12 +665,12 @@ app.get('/api/history', async (req, res) => {
 // Start Server
 const server = app.listen(PORT, () => {
     console.log('\n============================================');
-    console.log('🔥 Moot Court Assistant API (Grok Edition)');
+    console.log('🔥 Moot Court Assistant API (Gemini Edition)');
     console.log('============================================');
     console.log(`✓ Server running on http://localhost:${PORT}`);
-    console.log(`✓ AI Backend: ${isGroq ? 'Groq' : 'xAI (Grok)'}`);
+    console.log(`✓ AI Backend: Google Gemini (OpenAI Compatibility)`);
     console.log(`✓ Model: ${AI_MODEL}`);
-    console.log(`✓ API Key: ${process.env.XAI_API_KEY ? 'Configured' : 'NOT CONFIGURED'}`);
+    console.log(`✓ API Key: ${process.env.GEMINI_API_KEY ? 'Configured' : 'NOT CONFIGURED'}`);
     console.log('============================================\n');
 });
 

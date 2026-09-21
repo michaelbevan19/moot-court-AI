@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Upload, FileText, ArrowRight, Loader2, CheckCircle2, Scale, Bot } from 'lucide-react';
+import { Upload, FileText, ArrowRight, Loader2, CheckCircle2, Scale, Bot, Video } from 'lucide-react';
 import axios from 'axios';
 
 const UploadPage = () => {
@@ -61,6 +61,13 @@ const UploadPage = () => {
     const handleModuleSelect = (module) => {
         if (module === 'judge') {
             navigate('/courtroom', {
+                state: {
+                    sessionId: sessionData.sessionId,
+                    initialMessage: sessionData.message
+                }
+            });
+        } else if (module === 'judge-video') {
+            navigate('/courtroom-video', {
                 state: {
                     sessionId: sessionData.sessionId,
                     initialMessage: sessionData.message
@@ -158,32 +165,53 @@ const UploadPage = () => {
                         </div>
                     </>
                 ) : (
-                    <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto animate-in fade-in zoom-in duration-500">
+                    <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto animate-in fade-in zoom-in duration-500">
                         <button
                             onClick={() => handleModuleSelect('judge')}
-                            className="group relative p-8 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 backdrop-blur-md transition-all hover:scale-[1.02] hover:bg-cyan-500/20 text-left"
+                            className="group relative p-6 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 backdrop-blur-md transition-all hover:scale-[1.02] hover:bg-cyan-500/20 text-left flex flex-col justify-between"
                         >
-                            <div className="mb-4 p-4 inline-block rounded-xl bg-slate-900/50 border border-white/5 group-hover:border-cyan-500/30">
-                                <Scale className="w-8 h-8 text-cyan-400" />
+                            <div>
+                                <div className="mb-4 p-3 inline-block rounded-xl bg-slate-900/50 border border-white/5 group-hover:border-cyan-500/30">
+                                    <Scale className="w-7 h-7 text-cyan-400" />
+                                </div>
+                                <h3 className="text-xl font-bold mb-2">Standard Courtroom</h3>
+                                <p className="text-sm text-slate-400 mb-6">Enter the virtual courtroom with interactive text & voice reasoning mode.</p>
                             </div>
-                            <h3 className="text-2xl font-bold mb-2">AI Judge Simulation</h3>
-                            <p className="text-slate-400 mb-6">Enter the virtual courtroom and present your arguments to our strict AI Judge.</p>
-                            <div className="flex items-center text-sm font-bold text-cyan-400">
+                            <div className="flex items-center text-xs font-bold text-cyan-400">
                                 ENTER COURTROOM
                                 <ArrowRight className="w-4 h-4 ml-2" />
                             </div>
                         </button>
 
                         <button
-                            onClick={() => handleModuleSelect('support')}
-                            className="group relative p-8 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 backdrop-blur-md transition-all hover:scale-[1.02] hover:bg-indigo-500/20 text-left"
+                            onClick={() => handleModuleSelect('judge-video')}
+                            className="group relative p-6 rounded-2xl border border-purple-500/30 bg-purple-500/10 backdrop-blur-md transition-all hover:scale-[1.02] hover:bg-purple-500/20 text-left flex flex-col justify-between"
                         >
-                            <div className="mb-4 p-4 inline-block rounded-xl bg-slate-900/50 border border-white/5 group-hover:border-indigo-500/30">
-                                <Bot className="w-8 h-8 text-indigo-400" />
+                            <div>
+                                <div className="mb-4 p-3 inline-block rounded-xl bg-slate-900/50 border border-white/5 group-hover:border-purple-500/30">
+                                    <Video className="w-7 h-7 text-purple-400" />
+                                </div>
+                                <h3 className="text-xl font-bold mb-2">Video Courtroom Mode</h3>
+                                <p className="text-sm text-slate-400 mb-6">Experience full video avatar simulation with real-time judge state animation & speech sync.</p>
                             </div>
-                            <h3 className="text-2xl font-bold mb-2">AI Support Agent</h3>
-                            <p className="text-slate-400 mb-6">Get suggestions on how to improve your briefs and identify case weaknesses.</p>
-                            <div className="flex items-center text-sm font-bold text-indigo-400">
+                            <div className="flex items-center text-xs font-bold text-purple-400">
+                                LAUNCH VIDEO COURT
+                                <ArrowRight className="w-4 h-4 ml-2" />
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => handleModuleSelect('support')}
+                            className="group relative p-6 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 backdrop-blur-md transition-all hover:scale-[1.02] hover:bg-indigo-500/20 text-left flex flex-col justify-between"
+                        >
+                            <div>
+                                <div className="mb-4 p-3 inline-block rounded-xl bg-slate-900/50 border border-white/5 group-hover:border-indigo-500/30">
+                                    <Bot className="w-7 h-7 text-indigo-400" />
+                                </div>
+                                <h3 className="text-xl font-bold mb-2">AI Support Agent</h3>
+                                <p className="text-sm text-slate-400 mb-6">Get suggestions on how to improve your briefs and identify case weaknesses.</p>
+                            </div>
+                            <div className="flex items-center text-xs font-bold text-indigo-400">
                                 ACCESS MENTOR
                                 <ArrowRight className="w-4 h-4 ml-2" />
                             </div>
