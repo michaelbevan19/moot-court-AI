@@ -41,9 +41,9 @@ const CourtroomBackground = ({ isJudgeSpeaking }) => {
 
     useEffect(() => {
         if (isJudgeSpeaking) {
-            if (talkRef.current) { talkRef.current.currentTime = 0; talkRef.current.play().catch(() => {}); }
+            if (talkRef.current) { talkRef.current.currentTime = 0; talkRef.current.play().catch(() => { }); }
         } else {
-            if (idleRef.current) { idleRef.current.play().catch(() => {}); }
+            if (idleRef.current) { idleRef.current.play().catch(() => { }); }
         }
     }, [isJudgeSpeaking]);
 
@@ -55,9 +55,8 @@ const CourtroomBackground = ({ isJudgeSpeaking }) => {
             <video ref={talkRef} src="/assets/judge/judge-talking.mp4"
                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isJudgeSpeaking ? 'opacity-100' : 'opacity-0'}`}
                 muted playsInline loop />
-            {/* gradient overlays for UI readability */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#020617]/95 via-[#020617]/25 to-[#020617]/50 pointer-events-none" />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#020617]/80 via-transparent to-[#020617]/80 pointer-events-none" />
+
+            {/* Keep the Judge video bright and unobstructed. UI panels provide their own readability. */}
         </div>
     );
 };
@@ -76,6 +75,7 @@ const AIJudgeSimulationVideo = () => {
     const [error, setError] = useState('');
     const [isLive, setIsLive] = useState(false);
     const [interimText, setInterimText] = useState('');
+    const [micStatus, setMicStatus] = useState('idle');
     const [feedbackReport, setFeedbackReport] = useState(null);
     const [showHistory, setShowHistory] = useState(false);
     const [historyData, setHistoryData] = useState([]);
@@ -90,6 +90,97 @@ const AIJudgeSimulationVideo = () => {
     const utteranceRef = useRef(null);
     const isLiveRef = useRef(isLive);
     isLiveRef.current = isLive;
+    const shouldRestartRef = useRef(true);
+
+    // ── Mic Status UI Helper ──────────────────────────────────────────────────
+
+    const renderMicStatusIndicator = () => {
+        switch (micStatus) {
+            case 'starting':
+                return (
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-950/40 border border-amber-500/30 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                        <span>STARTING MICROPHONE</span>
+                    </div>
+                );
+            case 'listening':
+                return (
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+                        <span>MICROPHONE LISTENING</span>
+                    </div>
+                );
+            case 'processing':
+                return (
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-cyan-400 bg-cyan-950/40 border border-cyan-500/30 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" />
+                        <span>PROCESSING SPEECH</span>
+                    </div>
+                );
+            case 'permission-denied':
+                return (
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-red-400 bg-red-950/40 border border-red-500/30 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        <span>MICROPHONE DENIED</span>
+                    </div>
+                );
+            case 'no-speech':
+                return (
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-950/40 border border-amber-500/30 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        <span>NO SPEECH DETECTED</span>
+                    </div>
+                );
+            case 'unsupported':
+                return (
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-red-400 bg-red-950/40 border border-red-500/30 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        <span>SPEECH INPUT UNSUPPORTED</span>
+                    </div>
+                );
+            case 'audio-capture-error':
+                return (
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-red-400 bg-red-950/40 border border-red-500/30 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        <span>AUDIO CAPTURE ERROR</span>
+                    </div>
+                );
+            case 'network-error':
+                return (
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-950/40 border border-amber-500/30 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        <span>NETWORK ERROR</span>
+                    </div>
+                );
+            case 'stopped':
+                return (
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 border border-slate-700/40 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                        <span>MICROPHONE STOPPED</span>
+                    </div>
+                );
+            case 'error':
+                return (
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-red-400 bg-red-950/40 border border-red-500/30 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        <span>SPEECH ERROR</span>
+                    </div>
+                );
+            default:
+                return null;
+        }
+    };
+
+    // ── Initial Browser Support Check ─────────────────────────────────────────
+
+    useEffect(() => {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            setMicStatus('unsupported');
+            setError('Speech recognition is not supported in this browser.');
+            console.warn('MIC: SpeechRecognition is not supported in this browser.');
+        }
+    }, []);
 
     // ── TTS ──────────────────────────────────────────────────────────────────
 
@@ -161,33 +252,185 @@ const AIJudgeSimulationVideo = () => {
 
     useEffect(() => {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) return;
-        const recognition = new SR();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
+        if (!SR) {
+            setMicStatus('unsupported');
+            setError('Speech recognition is not supported in this browser.');
+            return;
+        }
 
-        recognition.onresult = (event) => {
-            let interim = '', final = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) final += event.results[i][0].transcript;
-                else interim += event.results[i][0].transcript;
+        if (!isLive) {
+            shouldRestartRef.current = false;
+            if (recognitionRef.current) {
+                try {
+                    recognitionRef.current.stop();
+                } catch (e) { }
             }
-            if (final) {
-                const cur = inputRef.current;
-                const newText = cur + (cur && !cur.endsWith(' ') ? ' ' : '') + final;
-                setInput(newText); inputRef.current = newText; setInterimText('');
-            } else { setInterimText(interim); }
+            setMicStatus('stopped');
+            console.log('MIC: live session stopped');
+            return;
+        }
+
+        let isCancelled = false;
+        setMicStatus('starting');
+        console.log('MIC: starting');
+
+        const initAndStart = async () => {
+            // Diagnostic microphone permission check
+            try {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    console.log('MIC: microphone permission granted');
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            } catch (err) {
+                console.error('MIC ERROR: permission-denied', err);
+                if (!isCancelled) {
+                    setMicStatus('permission-denied');
+                    setError('Microphone permission denied. Allow microphone access for localhost.');
+                    setIsLive(false);
+                }
+                return;
+            }
+
+            if (isCancelled || !isLiveRef.current) return;
+
+            if (!recognitionRef.current) {
+                const recognition = new SR();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'en-US';
+                console.log('MIC: recognition initialized');
+
+                recognition.onstart = () => {
+                    console.log('MIC: listening');
+                    setMicStatus('listening');
+                };
+
+                recognition.onaudiostart = () => {
+                    console.log('MIC: audio started');
+                };
+
+                recognition.onsoundstart = () => {
+                    console.log('MIC: sound started');
+                };
+
+                recognition.onspeechstart = () => {
+                    console.log('MIC: speech started');
+                };
+
+                recognition.onspeechend = () => {
+                    console.log('MIC: speech ended');
+                };
+
+                recognition.onsoundend = () => {
+                    console.log('MIC: sound ended');
+                };
+
+                recognition.onaudioend = () => {
+                    console.log('MIC: audio ended');
+                };
+
+                recognition.onend = () => {
+                    console.log('MIC: recognition ended');
+                    if (isLiveRef.current && shouldRestartRef.current) {
+                        try {
+                            console.log('MIC: restarting recognition...');
+                            recognition.start();
+                        } catch (e) {
+                            console.warn('MIC: restart failed', e);
+                        }
+                    } else {
+                        setMicStatus('stopped');
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error(`MIC ERROR: ${event.error}`);
+                    let errorMsg = `Speech recognition error: ${event.error}`;
+                    shouldRestartRef.current = true;
+
+                    switch (event.error) {
+                        case 'not-allowed':
+                            errorMsg = 'Microphone permission denied. Allow microphone access for localhost.';
+                            setMicStatus('permission-denied');
+                            shouldRestartRef.current = false;
+                            setIsLive(false);
+                            break;
+                        case 'service-not-allowed':
+                            errorMsg = 'Speech recognition service is not allowed in this browser.';
+                            setMicStatus('error');
+                            shouldRestartRef.current = false;
+                            setIsLive(false);
+                            break;
+                        case 'audio-capture':
+                            errorMsg = 'No microphone was detected or the microphone could not be accessed.';
+                            setMicStatus('audio-capture-error');
+                            shouldRestartRef.current = false;
+                            setIsLive(false);
+                            break;
+                        case 'no-speech':
+                            errorMsg = 'No speech detected. Please speak clearly into the microphone.';
+                            setMicStatus('no-speech');
+                            break;
+                        case 'network':
+                            errorMsg = 'Speech recognition network service failed.';
+                            setMicStatus('network-error');
+                            break;
+                        case 'aborted':
+                            errorMsg = 'Speech recognition was stopped.';
+                            setMicStatus('stopped');
+                            break;
+                        default:
+                            setMicStatus('error');
+                            break;
+                    }
+                    setError(errorMsg);
+                };
+
+                recognition.onresult = (event) => {
+                    let interim = '', final = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        const transcriptText = event.results[i][0].transcript;
+                        const isFinal = event.results[i].isFinal;
+                        console.log(`MIC RESULT: type = ${isFinal ? 'final' : 'interim'}, text = ${transcriptText}`);
+                        if (isFinal) {
+                            final += transcriptText;
+                        } else {
+                            interim += transcriptText;
+                        }
+                    }
+                    if (final) {
+                        setMicStatus('processing');
+                        const cur = inputRef.current;
+                        const newText = cur + (cur && !cur.endsWith(' ') ? ' ' : '') + final;
+                        setInput(newText);
+                        inputRef.current = newText;
+                        setInterimText('');
+                        setTimeout(() => {
+                            if (isLiveRef.current) setMicStatus('listening');
+                        }, 300);
+                    } else {
+                        setInterimText(interim);
+                    }
+                };
+
+                recognitionRef.current = recognition;
+            }
+
+            shouldRestartRef.current = true;
+            try {
+                recognitionRef.current.start();
+            } catch (e) {
+                console.warn('MIC: start exception (likely already active):', e);
+            }
         };
 
-        recognition.onerror = (e) => {
-            if (e.error === 'not-allowed') { setIsLive(false); setError('Microphone access denied.'); }
+        initAndStart();
+
+        return () => {
+            isCancelled = true;
         };
-        recognition.onend = () => { if (isLiveRef.current) { try { recognition.start(); } catch { } } };
-        recognitionRef.current = recognition;
-        if (isLive) { try { recognition.start(); } catch (e) { console.warn(e); } }
-        return () => recognition.stop();
-    }, [isLive, isLoading]);
+    }, [isLive]);
 
     // ── Send message ──────────────────────────────────────────────────────────
 
@@ -385,6 +628,17 @@ const AIJudgeSimulationVideo = () => {
                     {/* Center video area — no chat bubbles */}
                     <div className="flex-1 relative overflow-hidden flex flex-col">
 
+                        {/* Christ University branding placed over the source-video watermark.
+                            Positioned relative to the visible courtroom area so it is not hidden
+                            behind the left navigation sidebar. */}
+                        <div className="absolute top-1 left-1 z-30 px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800/50 shadow-md pointer-events-none">
+                            <img
+                                src="/assets/branding/christ-logo.png"
+                                alt="Christ University"
+                                className="w-24 md:w-28 h-auto object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]"
+                            />
+                        </div>
+
                         {/* Court banner */}
                         <div className="relative z-10 flex justify-center pt-5 pointer-events-none">
                             <div className="px-5 py-2 rounded-full bg-slate-950/60 border border-slate-700/40 backdrop-blur-sm text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">
@@ -442,7 +696,7 @@ const AIJudgeSimulationVideo = () => {
                         </div>
 
                         {/* ── BOTTOM INPUT BAR ── */}
-                        <div className="absolute bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-[#020617]/95 via-[#020617]/70 to-transparent">
+                        <div className="absolute bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-[#020617]/65 via-[#020617]/20 to-transparent">
 
                             {/* Compact last-response subtitle (not full chat history) */}
                             {lastBot && (
@@ -453,7 +707,7 @@ const AIJudgeSimulationVideo = () => {
                                             <span className="italic">{lastUser.text.substring(0, 80)}{lastUser.text.length > 80 ? '…' : ''}</span>
                                         </p>
                                     )}
-                                    <div className={`px-4 py-2.5 rounded-xl bg-slate-900/70 border backdrop-blur-sm text-center transition-all duration-300 ${isJudgeSpeaking ? 'border-cyan-500/40 shadow-[0_0_15px_rgba(34,211,238,0.15)]' : 'border-slate-700/40'}`}>
+                                    <div className={`px-4 py-2.5 rounded-xl bg-slate-900/15 border backdrop-blur-md text-center transition-all duration-300 ${isJudgeSpeaking ? 'border-cyan-500/40 shadow-[0_0_15px_rgba(34,211,238,0.15)]' : 'border-slate-700/30'}`}>
                                         <p className="text-[9px] font-bold text-cyan-400 uppercase tracking-widest mb-1">
                                             {isJudgeSpeaking ? '🔊 Hon. Chief Justice' : 'Hon. Chief Justice'}
                                         </p>
@@ -461,6 +715,13 @@ const AIJudgeSimulationVideo = () => {
                                             {lastBot.text.replace(/[#*`_~]/g, '').substring(0, 200)}{lastBot.text.length > 200 ? '…' : ''}
                                         </p>
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Small mic status indicator */}
+                            {micStatus !== 'idle' && (
+                                <div className="mb-2 flex justify-center">
+                                    {renderMicStatusIndicator()}
                                 </div>
                             )}
 
